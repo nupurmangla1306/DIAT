@@ -3,48 +3,44 @@ header('Content-Type: application/json');
 
 function read_csv(string $path): array {
     if (!file_exists($path)) return [];
-    $lines = array_filter(file($path, FILE_IGNORE_NEW_LINES|FILE_SKIP_EMPTY_LINES));
+    $lines = array_filter(file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
     return array_map('str_getcsv', $lines);
 }
 
-// paths to your data CSVs
-$sevCsv = 'severity/severity_data.csv';
-$occCsv = 'occurrence/occurrence_data.csv';
-$detCsv = 'detection/detection_data.csv';
+// Paths to input CSVs
+$sevCsv = __DIR__ . '/severity/severity_data.csv';
+$occCsv = __DIR__ . '/occurrence/occurrence_data.csv';
+$detCsv = __DIR__ . '/detection/detection_data.csv';
 
-// load into arrays
+// Load CSVs into arrays
 $sev = read_csv($sevCsv);
 $occ = read_csv($occCsv);
 $det = read_csv($detCsv);
 
-// validate
-if (empty($sev) || empty($occ) || empty($det)
-  || count($sev[0]) !== count($occ[0])
-  || count($sev[0]) !== count($det[0])) {
+// Validate structure
+if (empty($sev) || empty($occ) || empty($det)) {
     http_response_code(500);
-    echo json_encode(['error'=>'CSV files missing or malformed']);
+    echo json_encode(['error' => 'One or more CSV files are missing or empty.']);
     exit;
 }
 
-$activities = $sev[0];
-$userCount  = max(count($sev), count($occ), count($det)) - 1;
+$activities = $sev[0];  // Activity names from header
+$n = count($activities);  // Number of activities
+$userCount = min(count($sev), count($occ), count($det)) - 1;  // Number of users (rows after header)
 
-// initialize sums
-$n = count($activities);
-$sumSev = array_fill(0, $n, 0);
-$sumOcc = array_fill(0, $n, 0);
-$sumDet = array_fill(0, $n, 0);
+// Initialize totals
+$sumSev = $sumOcc = $sumDet = array_fill(0, $n, 0);
 
-// accumulate values
+// Accumulate totals from rows
 for ($r = 1; $r <= $userCount; $r++) {
     for ($c = 0; $c < $n; $c++) {
-        $sumSev[$c] += isset($sev[$r][$c]) && is_numeric($sev[$r][$c]) ? $sev[$r][$c] : 0;
-        $sumOcc[$c] += isset($occ[$r][$c]) && is_numeric($occ[$r][$c]) ? $occ[$r][$c] : 0;
-        $sumDet[$c] += isset($det[$r][$c]) && is_numeric($det[$r][$c]) ? $det[$r][$c] : 0;
+        $sumSev[$c] += isset($sev[$r][$c]) && is_numeric($sev[$r][$c]) ? floatval($sev[$r][$c]) : 0;
+        $sumOcc[$c] += isset($occ[$r][$c]) && is_numeric($occ[$r][$c]) ? floatval($occ[$r][$c]) : 0;
+        $sumDet[$c] += isset($det[$r][$c]) && is_numeric($det[$r][$c]) ? floatval($det[$r][$c]) : 0;
     }
 }
 
-// compute averages
+// Compute averages
 $avgSev = $avgOcc = $avgDet = [];
 for ($i = 0; $i < $n; $i++) {
     $avgSev[$i] = $userCount ? round($sumSev[$i] / $userCount, 2) : 0;
@@ -52,7 +48,7 @@ for ($i = 0; $i < $n; $i++) {
     $avgDet[$i] = $userCount ? round($sumDet[$i] / $userCount, 2) : 0;
 }
 
-// build results
+// Build RPN results
 $results = [];
 for ($i = 0; $i < $n; $i++) {
     $rpn = (int) round($avgSev[$i] * $avgOcc[$i] * $avgDet[$i]);
@@ -65,19 +61,19 @@ for ($i = 0; $i < $n; $i++) {
     ];
 }
 
-// sort by RPN desc & assign rank
-usort($results, fn($a,$b) => $b['rpn'] <=> $a['rpn']);
+// Sort results by RPN descending
+usort($results, fn($a, $b) => $b['rpn'] <=> $a['rpn']);
+
+// Assign rank
 foreach ($results as $idx => &$row) {
     $row['rank'] = $idx + 1;
 }
 unset($row);
 
-// --- WRITE final_outcome.csv ---
-$outCsv = 'final_outcome.csv';
+// Write to CSV
+$outCsv = __DIR__ . '/final_outcome.csv';
 $fp = fopen($outCsv, 'w');
-// header
-fputcsv($fp, ['Activity','Severity','Occurrence','Detection','RPN','Rank']);
-// rows
+fputcsv($fp, ['Activity', 'Severity', 'Occurrence', 'Detection', 'RPN', 'Rank']);
 foreach ($results as $row) {
     fputcsv($fp, [
         $row['activity'],
@@ -90,7 +86,7 @@ foreach ($results as $row) {
 }
 fclose($fp);
 
-// --- RETURN JSON for your HTML front-end ---
+// Return as JSON
 echo json_encode([
     'severity_data'   => array_combine($activities, $avgSev),
     'occurrence_data' => array_combine($activities, $avgOcc),
