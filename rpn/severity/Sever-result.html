@@ -29,48 +29,47 @@
   </div>
 
   <script>
-    const recentData = JSON.parse(localStorage.getItem("recentEntry")) || [];
-    const table      = document.getElementById("resultTable");
-    const loadingMsg = document.getElementById("loadingMsg");
-  
-    if (!recentData.length) {
-      loadingMsg.innerText = "⚠️ No values submitted.";
-    } else {
-      // Build payload: { "Param Name": value, … }
-      const payload = recentData.reduce((o,e) => {
-        o[e.parameter] = parseFloat(e.value);
-        return o;
-      }, {});
-  
-      fetch("severity_update.php", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload)
-      })
-      .then(res => {
-        if (!res.ok) throw new Error(res.statusText);
-        return res.json();
-      })
-      .then(data => {
-        const avgs = data.averages || {};
-        // show each entered + avg
-        recentData.forEach(({parameter, value}) => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${parameter}</td>
-            <td>${value}</td>
-            <td>${avgs[parameter] ?? 'N/A'}</td>
-          `;
-          table.appendChild(row);
-        });
-        loadingMsg.style.display = "none";
-      })
-      .catch(err => {
-        console.error("Fetch error:", err);
-        loadingMsg.innerText = "❌ Failed to load results.";
+  const recentData = JSON.parse(localStorage.getItem("recentEntry")) || [];
+  const table = document.getElementById("resultTable");
+  const loadingMsg = document.getElementById("loadingMsg");
+
+  if (!recentData.length) {
+    loadingMsg.innerText = "⚠️ No values submitted.";
+  } else {
+    const payload = recentData.reduce((o, e) => {
+      o[e.parameter] = parseFloat(e.value);
+      return o;
+    }, {});
+
+    fetch("severity_update.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
+    })
+    .then(data => {
+      // Build simple table with submitted data
+      recentData.forEach(({ parameter, value }) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${parameter}</td>
+          <td>${value}</td>
+          <td>Stored ✅</td>
+        `;
+        table.appendChild(row);
       });
-    }
-  </script>
+      loadingMsg.style.display = "none";
+    })
+    .catch(err => {
+      console.error("Fetch error:", err);
+      loadingMsg.innerText = "❌ Failed to submit data.";
+    });
+  }
+</script>
+
   
 </body>
 </html>
