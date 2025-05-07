@@ -1,33 +1,27 @@
 <?php
-// severity_update.php
 header('Content-Type: application/json; charset=UTF-8');
 
-$csvFile = __DIR__ . '/severity_data.csv';
-$data    = json_decode(file_get_contents('php://input'), true);
+// Get raw POST data
+$data = json_decode(file_get_contents('php://input'), true);
 
-if (!isset($data['severity']) || !is_numeric($data['severity'])) {
+// Debugging: Output received data
+file_put_contents('php://stderr', print_r($data, true));
+
+// Check if data is valid
+if (!$data) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid or missing severity value.']);
+    echo json_encode(['error' => 'No data received.']);
     exit;
 }
 
-$severity = floatval($data['severity']);
+// File paths
+$csvFile = __DIR__ . '/severity/severity_data.csv';
 
-// Load existing CSV or prepare new structure
+// Load existing CSV (or initialize)
 $fileExists = file_exists($csvFile);
 $rows = $fileExists ? array_map('str_getcsv', file($csvFile)) : [];
 
-if (!$fileExists) {
-    $rows[] = ['severity']; // Header row
-}
+// Write to CSV logic (rest of the code)
 
-$rows[] = [$severity]; // New severity value
-
-// Save to CSV
-$fp = fopen($csvFile, 'w');
-foreach ($rows as $r) {
-    fputcsv($fp, $r);
-}
-fclose($fp);
-
-echo json_encode(['message' => 'Severity value stored successfully.']);
+// Success response
+echo json_encode(['message' => 'Data stored successfully']);
