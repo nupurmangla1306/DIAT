@@ -1,13 +1,19 @@
 <?php
 // severity_update.php
 header('Content-Type: application/json; charset=UTF-8');
+
 $csvFile = __DIR__ . '/severity_data.csv';
 $data    = json_decode(file_get_contents('php://input'), true);
-if (!$data) {
+
+if (!$data || !is_array($data)) {
     http_response_code(400);
     echo json_encode(['error' => 'No data received.']);
     exit;
 }
+
+// Extract default value if provided
+$defaultAvg = isset($data['default']) && is_numeric($data['default']) ? floatval($data['default']) : 0;
+unset($data['default']); // Remove it so it's not treated as a data column
 
 // Load existing CSV (or initialize)
 $fileExists = file_exists($csvFile);
@@ -38,16 +44,26 @@ foreach ($rows as $r) {
 fclose($fp);
 
 // Compute averages column-wise
-$count = count($rows) - 1;               // exclude header
+$count = count($rows) - 1; // exclude header
 $totals = array_fill(0, count($headers), 0);
+$numericCounts = array_fill(0, count($headers), 0);
+
 for ($i = 1; $i <= $count; $i++) {
     foreach ($rows[$i] as $j => $val) {
-        if (is_numeric($val)) $totals[$j] += $val;
+        if (is_numeric($val)) {
+            $totals[$j] += $val;
+            $numericCounts[$j]++;
+        }
     }
 }
+
 $averages = [];
 foreach ($headers as $j => $col) {
-    $averages[$col] = $count ? round($totals[$j] / $count, 2) : 0;
+    if ($numericCounts[$j] > 0) {
+        $averages[$col] = round($totals[$j] / $numericCounts[$j], 2);
+    } else {
+        $averages[$col] = $defaultAvg;
+    }
 }
 
 echo json_encode(['averages' => $averages]);
