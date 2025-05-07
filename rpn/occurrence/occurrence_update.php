@@ -1,55 +1,33 @@
 <?php
-$csvFile = 'occurrence_data.csv';
-$data = json_decode(file_get_contents('php://input'), true);
+// occurrence_update.php
+header('Content-Type: application/json; charset=UTF-8');
 
-if (!$data) {
+$csvFile = __DIR__ . '/occurrence_data.csv';
+$data    = json_decode(file_get_contents('php://input'), true);
+
+if (!isset($data['occurrence']) || !is_numeric($data['occurrence'])) {
     http_response_code(400);
-    echo json_encode(["error" => "No data received."]);
+    echo json_encode(['error' => 'Invalid or missing occurrence value.']);
     exit;
 }
 
-$parameterValues = $data; // ["parameter_name" => value, ...]
+$occurrence = floatval($data['occurrence']);
 
-// Load or initialize CSV
+// Load existing CSV or prepare new structure
 $fileExists = file_exists($csvFile);
-$csv = [];
+$rows = $fileExists ? array_map('str_getcsv', file($csvFile)) : [];
 
-if ($fileExists) {
-    $csv = array_map('str_getcsv', file($csvFile));
-    $headers = $csv[0];
-} else {
-    $headers = array_keys($parameterValues);
-    $csv[] = $headers;
+if (!$fileExists) {
+    $rows[] = ['occurrence']; // Header row
 }
 
-// Ensure column order matches
-$row = [];
-foreach ($headers as $param) {
-    $row[] = $parameterValues[$param] ?? '';
-}
-$csv[] = $row;
+$rows[] = [$occurrence]; // New occurrence value
 
-// Save updated CSV
+// Save to CSV
 $fp = fopen($csvFile, 'w');
-foreach ($csv as $line) {
-    fputcsv($fp, $line);
+foreach ($rows as $r) {
+    fputcsv($fp, $r);
 }
 fclose($fp);
 
-// Calculate averages
-$totals = array_fill(0, count($headers), 0);
-$count = count($csv) - 1;
-
-for ($i = 1; $i < count($csv); $i++) {
-    for ($j = 0; $j < count($csv[$i]); $j++) {
-        $totals[$j] += is_numeric($csv[$i][$j]) ? floatval($csv[$i][$j]) : 0;
-    }
-}
-
-$averages = [];
-for ($i = 0; $i < count($headers); $i++) {
-    $averages[$headers[$i]] = round($totals[$i] / $count, 2);
-}
-
-echo json_encode(["averages" => $averages]);
-?>
+echo json_encode(['message' => 'Occurrence value stored successfully.']);
